@@ -47,7 +47,6 @@ def similaridade_ortografica(palavra):
     return derivada_palavra / maior_derivada if maior_derivada != 0 else 0
 
 def contagem_letras_espelhadas(palavra):
-    # Mede a presença de caracteres que frequentemente sofrem rotação ou inversão visual
     palavra = palavra.lower()
     letras_conflitantes = ['b', 'd', 'p', 'q', 'd', 'b']
     total = sum(1 for letra in palavra if letra in letras_conflitantes)
