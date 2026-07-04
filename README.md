@@ -1,69 +1,37 @@
+# Classificação de Palavras para Dislexia com K-Means
 
-A classificação é então determinada por:
-- **Fácil:** Nível <= 0.3
-- **Médio:** 0.3 < Nível <= 0.6
-- **Difícil:** Nível > 0.6
+Sistema que classifica palavras em níveis de dificuldade (Fácil, Médio, Difícil) para auxiliar crianças com dislexia no processo de alfabetização. O projeto combina métricas linguísticas com o algoritmo K-Means.
 
-### Inicialização Inteligente dos Centroides
+## Métricas
 
-Diferente da abordagem tradicional de K-Means que usa centroides aleatórios, este sistema utiliza uma inicialização inteligente:
+- Frequência de Uso
+- Complexidade Silábica
+- Similaridade Ortográfica
+- Encontros Consonantais Complexos
 
-1. **Centroides são posicionados com base na classificação calculada** das palavras
-2. **Ajuste fino do centroide "Difícil"** para capturar palavras com alto índice de encontros consonantais complexos
-3. **Distância mínima entre centroides** para evitar convergência para mínimos locais
+## Cálculo do Nível
 
-### Otimização por Match
+Se SO == 0:
+Nível = (0.30 * Frequência) + (0.70 * Complexidade Silábica)
+Senão:
+Nível = (0.20 * Frequência) + (0.40 * Complexidade Silábica) + (0.40 * Similaridade Ortográfica)
 
-O algoritmo executa até 15 iterações e monitora continuamente o **match** entre:
-- A classificação do K-Means (agrupamento)
-- A classificação calculada (baseada na fórmula original)
 
-A melhor configuração de centroides é preservada, garantindo o melhor alinhamento possível entre as duas classificações.
+## Classificação
 
-## Estrutura do Código
+- Fácil: Nível <= 0.3
+- Médio: 0.3 < Nível <= 0.6
+- Difícil: Nível > 0.6
 
-### Componentes Principais
+## Como Executar
 
-- **`estimar_silabas()`**: Estima o número de sílabas usando regras fonéticas do português
-- **`estimar_derivacoes()`**: Estima derivações baseado em sufixos e padrões morfológicos
-- **`contagem_encontros_complexos()`**: Conta padrões consonantais complexos
-- **`frequencia_de_uso()`**: Retorna a frequência normalizada da palavra
-- **`classificar_nivel()`**: Classifica a palavra baseado no nível calculado
-- **`calcular_match()`**: Calcula o alinhamento entre K-Means e classificação calculada
-- **`criar_grafico()`**: Gera visualizações interativas do processo de clusterização
+### Google Colab
 
-### Visualização
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1iPYIVsKPBV2enDwXeaF6w19VmqUmJuZ9?usp=sharing)
 
-O sistema gera gráficos em tempo real mostrando:
-- **Pontos coloridos** representando cada palavra, com cor baseada no cluster atribuído
-- **Centroides (X)** representando o centro de cada cluster
-- **Match percentage** atualizado a cada iteração
-- **Pontos destacados** que mudaram de cluster entre iterações
-
-### Eixos do Gráfico
-
-- **Eixo X:** Frequência de Uso (Normalizada)
-- **Eixo Y:** Encontros Consonantais Complexos
-
-Os eixos são configurados para exibir a faixa 0-1 com margem de 15%, facilitando a visualização dos agrupamentos.
-
-## Dataset
-
-O sistema utiliza um dataset de **135 palavras** em português, com frequências de uso extraídas de corpora linguísticos. As palavras variam desde termos simples como "flor" e "sol" até palavras complexas como "aeroporto" e "aprendizagem".
-
-## Pré-requisitos
-
-Certifique-se de ter o Python e as bibliotecas necessárias instaladas no seu ambiente:
+### Localmente
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
 python dislex_kmeans.py
-# ou
-venv\Scripts\activate  # Windows
-pip install numpy pandas matplotlib scikit-learn
-python dislex_kmeans.py
-
-Execute o notebook diretamente no seu navegador: 
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1iPYIVsKPBV2enDwXeaF6w19VmqUmJuZ9?usp=sharing)
