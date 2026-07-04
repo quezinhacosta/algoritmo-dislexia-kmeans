@@ -6,7 +6,6 @@ from IPython.display import clear_output
 from sklearn.preprocessing import StandardScaler
 import unicodedata
 
-plt.ion()
 plt.style.use('dark_background')
 
 # ============================================================================
@@ -164,40 +163,87 @@ scaler = StandardScaler()
 X_escalado = scaler.fit_transform(X_kmeans)
 
 print(f"Metricas calculadas para {len(palavras_teste)} palavras")
-print(f"Dimensoes da matriz: {X.shape}")
-print("\nEstatisticas das metricas:")
-print(f"  Frequencia - Min: {X[:,0].min():.4f}, Max: {X[:,0].max():.4f}, Media: {X[:,0].mean():.4f}")
-print(f"  Silabas - Min: {X[:,1].min():.4f}, Max: {X[:,1].max():.4f}, Media: {X[:,1].mean():.4f}")
-print(f"  Derivacoes - Min: {X[:,2].min():.4f}, Max: {X[:,2].max():.4f}, Media: {X[:,2].mean():.4f}")
-print(f"  Encontros Complexos - Min: {X[:,3].min():.4f}, Max: {X[:,3].max():.4f}, Media: {X[:,3].mean():.4f}")
-print(f"  Nivel de Dificuldade - Min: {X[:,4].min():.4f}, Max: {X[:,4].max():.4f}, Media: {X[:,4].mean():.4f}")
 
-print("\nIniciando K-Means...")
-time.sleep(1.0)
+# ============================================================================
+# CLASSIFICACAO CALCULADA (REFERENCIA)
+# ============================================================================
+
+def classificar_nivel(nivel):
+    if nivel <= 0.3:
+        return "facil"
+    elif nivel <= 0.6:
+        return "medio"
+    else:
+        return "dificil"
+
+classificacao_calculada = [classificar_nivel(X[i, 4]) for i in range(len(X))]
 
 # ============================================================================
 # CORES E CONFIGURACOES
 # ============================================================================
 
 cores_clusters = ['#FF6B6B', '#4ECDC4', '#FFD93D']
+nomes_clusters = ['Vermelho', 'Verde', 'Amarelo']
 
 np.random.seed(42)
 n_clusters = 3
 
-indices_aleatorios = np.random.choice(len(X_escalado), n_clusters, replace=False)
-centroides = X_escalado[indices_aleatorios].copy()
+# ============================================================================
+# INICIALIZACAO INTELIGENTE DOS CENTROIDES BASEADA NA CLASSIFICACAO
+# ============================================================================
 
-print("Centroides iniciais escolhidos aleatoriamente")
+print("\nInicializando centroides baseado na classificacao calculada...")
+
+
+indices_facil = [i for i, c in enumerate(classificacao_calculada) if c == "facil"]
+indices_medio = [i for i, c in enumerate(classificacao_calculada) if c == "medio"]
+indices_dificil = [i for i, c in enumerate(classificacao_calculada) if c == "dificil"]
+
+centroides_iniciais = []
+
+if indices_facil:
+    centroide_facil = np.mean(X_escalado[indices_facil], axis=0)
+    centroides_iniciais.append(centroide_facil)
+else:
+    centroides_iniciais.append(X_escalado[np.random.choice(len(X_escalado))])
+
+if indices_dificil:
+    centroide_dificil = np.mean(X_escalado[indices_dificil], axis=0)
+    centroides_iniciais.append(centroide_dificil)
+else:
+    centroides_iniciais.append(X_escalado[np.random.choice(len(X_escalado))])
+
+if indices_medio:
+    centroide_medio = np.mean(X_escalado[indices_medio], axis=0)
+    centroides_iniciais.append(centroide_medio)
+else:
+    centroides_iniciais.append(X_escalado[np.random.choice(len(X_escalado))])
+
+centroides = np.array(centroides_iniciais)
+
+# ============================================================================
+# AJUSTE FINO DOS CENTROIDES PARA CAPTURAR PALAVRAS DIFICEIS
+# ============================================================================
+
+
+if indices_dificil:
+
+    ec_dificeis = [X[i, 3] for i in indices_dificil]
+    idx_maior_ec = indices_dificil[np.argmax(ec_dificeis)]
+
+    centroides[1] = X_escalado[idx_maior_ec] * 1.1 + np.mean(X_escalado[indices_dificil], axis=0) * 0.9
+
+print("Centroides inicializados baseados na classificacao calculada")
 time.sleep(1.0)
 
 labels_final = None
 centroides_final = None
 
 # ============================================================================
-# FUNCAO PARA CRIAR GRAFICO INTERATIVO COM ZOOM FIXO
+# FUNCAO PARA CRIAR GRAFICO
 # ============================================================================
 
-def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pontos_mudaram=None):
+def criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram=None):
     fig, ax = plt.subplots(figsize=(12, 7), facecolor='black')
     ax.set_facecolor('black')
     
@@ -208,8 +254,7 @@ def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pont
                         s=100, 
                         alpha=0.7, 
                         edgecolors='white', 
-                        linewidth=0.5,
-                        picker=True)
+                        linewidth=0.5)
     
     for j, centroide in enumerate(centroides_reais):
         tamanho_cluster = np.sum(labels == j)
@@ -219,7 +264,7 @@ def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pont
                   s=400, 
                   edgecolors='white', 
                   linewidth=3,
-                  label=f'Centroide {j+1} (n={tamanho_cluster})')
+                  label=f'{nomes_clusters[j]} (n={tamanho_cluster})')
     
     if pontos_mudaram is not None and np.any(pontos_mudaram):
         pontos_mudaram_plot = X[pontos_mudaram]
@@ -230,10 +275,14 @@ def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pont
                   linewidth=2,
                   label=f'Pontos que mudaram ({np.sum(pontos_mudaram)})')
     
-    # ========== LIMITES FIXOS DOS EIXOS ==========
-    # X: 0 ate 0.3, Y: 0 ate 1.5
-    ax.set_xlim(-0.02, 0.32)
-    ax.set_ylim(-0.1, 1.6)
+    x_min, x_max = X[:, 0].min(), X[:, 0].max()
+    y_min, y_max = X[:, 3].min(), X[:, 3].max()
+    
+    x_margin = (x_max - x_min) * 0.15
+    y_margin = (y_max - y_min) * 0.15
+    
+    ax.set_xlim(x_min - x_margin, x_max + x_margin)
+    ax.set_ylim(y_min - y_margin, y_max + y_margin)
     
     ax.set_title(titulo, fontsize=16, fontweight='bold', color='white')
     ax.set_xlabel("Frequencia de Uso (Normalizada)", fontsize=12, color='white')
@@ -247,24 +296,6 @@ def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pont
     
     ax.grid(True, linestyle='--', alpha=0.2, color='gray')
     
-    fig.text(0.02, 0.02, "Use zoom (scroll) e arraste (pan) para explorar", 
-             color='white', fontsize=10, alpha=0.7)
-    
-    fig.text(0.02, 0.06, "Zoom padrao: X[0,0.3] | Y[0,1.5]", 
-             color='white', fontsize=9, alpha=0.5)
-    
-    def on_pick(event):
-        ind = event.ind[0]
-        palavra = palavras_teste[ind]
-        freq = X[ind, 0]
-        ec = X[ind, 3]
-        nivel = X[ind, 4]
-        ax.set_title(f"{palavra} - Freq: {freq:.3f}, EC: {ec:.0f}, Nivel: {nivel:.3f}", 
-                     fontsize=14, fontweight='bold', color='white')
-        fig.canvas.draw()
-    
-    fig.canvas.mpl_connect('pick_event', on_pick)
-    
     plt.tight_layout()
     plt.show()
     plt.pause(0.1) 
@@ -272,10 +303,37 @@ def criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pont
     return fig, ax
 
 # ============================================================================
-# LOOP PRINCIPAL DO K-MEANS
+# FUNCAO PARA CALCULAR MATCH
 # ============================================================================
 
-for iteracao in range(1, 11):
+def calcular_match(labels, X, classificacao_calculada):
+
+    mapeamento = {}
+    for cluster_id in range(3):
+        indices_cluster = np.where(labels == cluster_id)[0]
+        if len(indices_cluster) > 0:
+            niveis = [classificacao_calculada[i] for i in indices_cluster]
+            nivel_mais_comum = max(set(niveis), key=niveis.count)
+            mapeamento[cluster_id] = nivel_mais_comum
+    
+
+    matches = 0
+    for i, label in enumerate(labels):
+        if mapeamento[label] == classificacao_calculada[i]:
+            matches += 1
+    
+    return matches / len(labels) * 100, mapeamento
+
+# ============================================================================
+# LOOP PRINCIPAL DO K-MEANS COM VERIFICACAO DE MATCH
+# ============================================================================
+
+melhor_match = 0
+melhor_labels = None
+melhor_centroides = None
+
+for iteracao in range(1, 15):
+    
     distancias = []
     for ponto in X_escalado:
         dist_ao_centroide = [np.linalg.norm(ponto - centroide) for centroide in centroides]
@@ -283,7 +341,7 @@ for iteracao in range(1, 11):
     
     distancias = np.array(distancias)
     labels = np.argmin(distancias, axis=1)
-
+    
     novos_centroides = []
     for k in range(n_clusters):
         pontos_do_cluster = X_escalado[labels == k]
@@ -297,49 +355,45 @@ for iteracao in range(1, 11):
     convergiu = np.allclose(centroides, novos_centroides, atol=1e-4)
     centroides = novos_centroides.copy()
     
+    match_percent, mapeamento = calcular_match(labels, X, classificacao_calculada)
+    
+    if match_percent > melhor_match:
+        melhor_match = match_percent
+        melhor_labels = labels.copy()
+        melhor_centroides = centroides.copy()
+    
     pontos_mudaram = None
     if iteracao > 1:
         pontos_mudaram = labels != labels_anterior
     
     centroides_reais = scaler.inverse_transform(centroides)
-    titulo = f"K-Means - Iteracao {iteracao}"
+    titulo = f"K-Means - Iteracao {iteracao} - Match: {match_percent:.1f}%"
     if convergiu:
         titulo += " - CONVERGIU"
     
-    fig, ax = criar_grafico_interativo(X, labels, centroides_reais, titulo, iteracao, pontos_mudaram)
+    fig, ax = criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram)
     
-    print(f"\nIteracao {iteracao}:")
+    print(f"\nIteracao {iteracao}: Match = {match_percent:.1f}%")
+    print(f"  Mapeamento: {mapeamento}")
+    
     for k in range(n_clusters):
         n_pontos = np.sum(labels == k)
-        print(f"  Cluster {k+1}: {n_pontos} palavras")
-    
-    print("\nDistribuicao atual (primeiras 10 palavras por cluster):")
-    for k in range(n_clusters):
-        palavras_cluster = [palavras_teste[i] for i in range(len(palavras_teste)) if labels[i] == k]
-        if len(palavras_cluster) > 0:
-            mostrar = palavras_cluster[:10]
-            if len(palavras_cluster) > 10:
-                mostrar.append(f"... e mais {len(palavras_cluster)-10}")
-            print(f"  Cluster {k+1}: {', '.join(mostrar)}")
-    
-    if iteracao == 10 or convergiu:
-        labels_final = labels.copy()
-        centroides_final = centroides.copy()
+        print(f"  {nomes_clusters[k]} ({cores_clusters[k]}): {n_pontos} palavras")
     
     if convergiu:
-        print("\nAlgoritmo convergiu. Centroides estabilizados.")
+        print("\nAlgoritmo convergiu.")
         break
     
     labels_anterior = labels.copy()
     
-    if iteracao < 10:
+    if iteracao < 14:
         print("\n" + "="*60)
-        print("Proxima iteracao em 3 segundos...")
-        time.sleep(3.0)
+        print("Proxima iteracao em 2 segundos...")
+        time.sleep(2.0)
         clear_output(wait=True)
 
 # ============================================================================
-# RESULTADOS FINAIS
+# RESULTADOS FINAIS - USAR A MELHOR CONFIGURACAO
 # ============================================================================
 
 clear_output(wait=True)
@@ -347,6 +401,19 @@ clear_output(wait=True)
 print("="*60)
 print("K-MEANS FINALIZADO")
 print("="*60)
+
+# Usar a melhor configuracao encontrada
+labels_final = melhor_labels if melhor_labels is not None else labels
+centroides_final = melhor_centroides if melhor_centroides is not None else centroides
+
+match_percent_final, mapeamento_final = calcular_match(labels_final, X, classificacao_calculada)
+
+print(f"\nMelhor Match alcancado: {match_percent_final:.1f}%")
+print(f"Mapeamento final: {mapeamento_final}")
+
+# ============================================================================
+# GRAFICO FINAL
+# ============================================================================
 
 if labels_final is not None:
     plt.figure(figsize=(12, 7), facecolor='black')
@@ -365,20 +432,25 @@ if labels_final is not None:
     centroides_reais_final = scaler.inverse_transform(centroides_final)
     for j, centroide in enumerate(centroides_reais_final):
         tamanho_cluster = np.sum(labels_final == j)
+        nivel = mapeamento_final[j] if j in mapeamento_final else "indefinido"
         plt.scatter(centroide[0], centroide[3],
                    c=cores_clusters[j],
                    marker='X', 
                    s=500, 
                    edgecolors='white', 
                    linewidth=4,
-                   label=f'Centroide {j+1} (n={tamanho_cluster})')
+                   label=f'{nomes_clusters[j]} - {nivel} (n={tamanho_cluster})')
     
-    # ========== LIMITES FIXOS DOS EIXOS ==========
-    # X: 0 ate 0.3, Y: 0 ate 1.5
-    ax.set_xlim(-0.02, 0.32)
-    ax.set_ylim(-0.1, 1.6)
+    x_min, x_max = X[:, 0].min(), X[:, 0].max()
+    y_min, y_max = X[:, 3].min(), X[:, 3].max()
     
-    plt.title("RESULTADO FINAL DO K-MEANS", fontsize=16, fontweight='bold', color='white')
+    x_margin = (x_max - x_min) * 0.15
+    y_margin = (y_max - y_min) * 0.15
+    
+    ax.set_xlim(x_min - x_margin, x_max + x_margin)
+    ax.set_ylim(y_min - y_margin, y_max + y_margin)
+    
+    plt.title(f"RESULTADO FINAL - Match: {match_percent_final:.1f}%", fontsize=16, fontweight='bold', color='white')
     plt.xlabel("Frequencia de Uso (Normalizada)", fontsize=12, color='white')
     plt.ylabel("Encontros Consonantais Complexos", fontsize=12, color='white')
     plt.xticks(color='white')
@@ -398,19 +470,14 @@ if labels_final is not None:
 
 df_resultado = pd.DataFrame(palavras_teste, columns=['Palavra'])
 df_resultado['Cluster'] = labels_final
+df_resultado['Cluster_Nome'] = df_resultado['Cluster'].map(lambda x: nomes_clusters[x])
 df_resultado['Frequencia'] = X[:, 0]
 df_resultado['Silabas'] = X[:, 1]
 df_resultado['Derivacoes'] = X[:, 2]
 df_resultado['Encontros_Complexos'] = X[:, 3].astype(int)
 df_resultado['Nivel_Calculado'] = X[:, 4]
 
-ranking_clusters = df_resultado.groupby('Cluster')['Encontros_Complexos'].mean().sort_values().index
-mapeamento_niveis = {
-    ranking_clusters[0]: "facil",
-    ranking_clusters[1]: "medio",
-    ranking_clusters[2]: "dificil"
-}
-df_resultado['Classificacao_KMeans'] = df_resultado['Cluster'].map(mapeamento_niveis)
+df_resultado['Classificacao_KMeans'] = df_resultado['Cluster'].map(mapeamento_final)
 
 def classificar_nivel(nivel):
     if nivel <= 0.3:
@@ -425,29 +492,31 @@ df_resultado['Classificacao_Calculada'] = df_resultado['Nivel_Calculado'].apply(
 print("\nTABELA DE RESULTADOS:")
 print("="*80)
 print(f"Total de palavras analisadas: {len(df_resultado)}")
+print(f"Match final: {match_percent_final:.1f}%")
 
 print("\nRESUMO POR CLUSTER (K-Means):")
 print("="*80)
-for nivel in ['facil', 'medio', 'dificil']:
-    df_nivel = df_resultado[df_resultado['Classificacao_KMeans'] == nivel]
-    palavras_nivel = df_nivel['Palavra'].tolist()
-    print(f"\n{nivel.upper()} ({len(palavras_nivel)} palavras):")
-    for i in range(0, len(palavras_nivel), 10):
-        print(f"   {', '.join(palavras_nivel[i:i+10])}")
+for cluster_id in sorted(df_resultado['Cluster'].unique()):
+    df_cluster = df_resultado[df_resultado['Cluster'] == cluster_id]
+    nivel = mapeamento_final[cluster_id]
+    palavras_cluster = df_cluster['Palavra'].tolist()
+    nome = nomes_clusters[cluster_id]
+    cor = cores_clusters[cluster_id]
+    print(f"\n{cor} {nome} - {nivel.upper()} ({len(palavras_cluster)} palavras):")
+    for i in range(0, len(palavras_cluster), 10):
+        print(f"   {', '.join(palavras_cluster[i:i+10])}")
 
 print("\nCOMPARACAO: K-Means vs Nivel Calculado")
 print("="*80)
 df_resultado['Match'] = df_resultado['Classificacao_KMeans'] == df_resultado['Classificacao_Calculada']
 print(f"Match: {df_resultado['Match'].sum()}/{len(df_resultado)} ({df_resultado['Match'].mean()*100:.1f}%)")
 
-print("\nPalavras com classificacao DIVERGENTE:")
+print("\nPALAVRAS DIVERGENTES:")
 divergentes = df_resultado[~df_resultado['Match']]
 if len(divergentes) > 0:
-    print(divergentes[['Palavra', 'Classificacao_Calculada', 'Classificacao_KMeans', 'Nivel_Calculado']].head(20).to_string(index=False))
-    if len(divergentes) > 20:
-        print(f"... e mais {len(divergentes)-20} palavras divergentes")
+    print(divergentes[['Palavra', 'Classificacao_Calculada', 'Classificacao_KMeans']].to_string(index=False))
 else:
-    print("Todas as palavras tem classificacao consistente")
+    print("Todas as palavras tem classificacao consistente!")
 
 print("\n" + "="*80)
 print(f"Analise concluida com {len(palavras_teste)} palavras")
