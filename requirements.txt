@@ -1,0 +1,7 @@
+numpy
+pandas
+matplotlib
+scikit-learn
+spacy
+ipython
+pt-core-news-sm

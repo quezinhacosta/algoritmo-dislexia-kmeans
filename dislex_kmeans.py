@@ -189,11 +189,10 @@ np.random.seed(42)
 n_clusters = 3
 
 # ============================================================================
-# INICIALIZACAO INTELIGENTE DOS CENTROIDES BASEADA NA CLASSIFICACAO
+# INICIALIZACAO INTELIGENTE DOS CENTROIDES
 # ============================================================================
 
 print("\nInicializando centroides baseado na classificacao calculada...")
-
 
 indices_facil = [i for i, c in enumerate(classificacao_calculada) if c == "facil"]
 indices_medio = [i for i, c in enumerate(classificacao_calculada) if c == "medio"]
@@ -221,16 +220,9 @@ else:
 
 centroides = np.array(centroides_iniciais)
 
-# ============================================================================
-# AJUSTE FINO DOS CENTROIDES PARA CAPTURAR PALAVRAS DIFICEIS
-# ============================================================================
-
-
 if indices_dificil:
-
     ec_dificeis = [X[i, 3] for i in indices_dificil]
     idx_maior_ec = indices_dificil[np.argmax(ec_dificeis)]
-
     centroides[1] = X_escalado[idx_maior_ec] * 1.1 + np.mean(X_escalado[indices_dificil], axis=0) * 0.9
 
 print("Centroides inicializados baseados na classificacao calculada")
@@ -240,7 +232,7 @@ labels_final = None
 centroides_final = None
 
 # ============================================================================
-# FUNCAO PARA CRIAR GRAFICO
+# FUNCAO PARA CRIAR GRAFICO COM EIXOS 0-2
 # ============================================================================
 
 def criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram=None):
@@ -258,7 +250,9 @@ def criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram=None):
     
     for j, centroide in enumerate(centroides_reais):
         tamanho_cluster = np.sum(labels == j)
-        ax.scatter(centroide[0], centroide[3],
+        centroide_x = np.clip(centroide[0], 0, 2)
+        centroide_y = np.clip(centroide[3], 0, 2)
+        ax.scatter(centroide_x, centroide_y,
                   c=cores_clusters[j],
                   marker='X', 
                   s=400, 
@@ -275,14 +269,9 @@ def criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram=None):
                   linewidth=2,
                   label=f'Pontos que mudaram ({np.sum(pontos_mudaram)})')
     
-    x_min, x_max = X[:, 0].min(), X[:, 0].max()
-    y_min, y_max = X[:, 3].min(), X[:, 3].max()
-    
-    x_margin = (x_max - x_min) * 0.15
-    y_margin = (y_max - y_min) * 0.15
-    
-    ax.set_xlim(x_min - x_margin, x_max + x_margin)
-    ax.set_ylim(y_min - y_margin, y_max + y_margin)
+
+    ax.set_xlim(-0.05, 2.05)
+    ax.set_ylim(-0.05, 2.05)
     
     ax.set_title(titulo, fontsize=16, fontweight='bold', color='white')
     ax.set_xlabel("Frequencia de Uso (Normalizada)", fontsize=12, color='white')
@@ -306,8 +295,7 @@ def criar_grafico(X, labels, centroides_reais, titulo, pontos_mudaram=None):
 # FUNCAO PARA CALCULAR MATCH
 # ============================================================================
 
-def calcular_match(labels, X, classificacao_calculada):
-
+def calcular_match(labels, classificacao_calculada):
     mapeamento = {}
     for cluster_id in range(3):
         indices_cluster = np.where(labels == cluster_id)[0]
@@ -316,7 +304,6 @@ def calcular_match(labels, X, classificacao_calculada):
             nivel_mais_comum = max(set(niveis), key=niveis.count)
             mapeamento[cluster_id] = nivel_mais_comum
     
-
     matches = 0
     for i, label in enumerate(labels):
         if mapeamento[label] == classificacao_calculada[i]:
@@ -325,7 +312,7 @@ def calcular_match(labels, X, classificacao_calculada):
     return matches / len(labels) * 100, mapeamento
 
 # ============================================================================
-# LOOP PRINCIPAL DO K-MEANS COM VERIFICACAO DE MATCH
+# LOOP PRINCIPAL DO K-MEANS
 # ============================================================================
 
 melhor_match = 0
@@ -333,7 +320,7 @@ melhor_labels = None
 melhor_centroides = None
 
 for iteracao in range(1, 15):
-    
+
     distancias = []
     for ponto in X_escalado:
         dist_ao_centroide = [np.linalg.norm(ponto - centroide) for centroide in centroides]
@@ -341,7 +328,7 @@ for iteracao in range(1, 15):
     
     distancias = np.array(distancias)
     labels = np.argmin(distancias, axis=1)
-    
+ 
     novos_centroides = []
     for k in range(n_clusters):
         pontos_do_cluster = X_escalado[labels == k]
@@ -354,8 +341,8 @@ for iteracao in range(1, 15):
     novos_centroides = np.array(novos_centroides)
     convergiu = np.allclose(centroides, novos_centroides, atol=1e-4)
     centroides = novos_centroides.copy()
-    
-    match_percent, mapeamento = calcular_match(labels, X, classificacao_calculada)
+
+    match_percent, mapeamento = calcular_match(labels, classificacao_calculada)
     
     if match_percent > melhor_match:
         melhor_match = match_percent
@@ -402,17 +389,16 @@ print("="*60)
 print("K-MEANS FINALIZADO")
 print("="*60)
 
-# Usar a melhor configuracao encontrada
 labels_final = melhor_labels if melhor_labels is not None else labels
 centroides_final = melhor_centroides if melhor_centroides is not None else centroides
 
-match_percent_final, mapeamento_final = calcular_match(labels_final, X, classificacao_calculada)
+match_percent_final, mapeamento_final = calcular_match(labels_final, classificacao_calculada)
 
 print(f"\nMelhor Match alcancado: {match_percent_final:.1f}%")
 print(f"Mapeamento final: {mapeamento_final}")
 
 # ============================================================================
-# GRAFICO FINAL
+# GRAFICO FINAL COM EIXOS 0-2
 # ============================================================================
 
 if labels_final is not None:
@@ -433,7 +419,9 @@ if labels_final is not None:
     for j, centroide in enumerate(centroides_reais_final):
         tamanho_cluster = np.sum(labels_final == j)
         nivel = mapeamento_final[j] if j in mapeamento_final else "indefinido"
-        plt.scatter(centroide[0], centroide[3],
+        centroide_x = np.clip(centroide[0], 0, 2)
+        centroide_y = np.clip(centroide[3], 0, 2)
+        plt.scatter(centroide_x, centroide_y,
                    c=cores_clusters[j],
                    marker='X', 
                    s=500, 
@@ -441,14 +429,9 @@ if labels_final is not None:
                    linewidth=4,
                    label=f'{nomes_clusters[j]} - {nivel} (n={tamanho_cluster})')
     
-    x_min, x_max = X[:, 0].min(), X[:, 0].max()
-    y_min, y_max = X[:, 3].min(), X[:, 3].max()
     
-    x_margin = (x_max - x_min) * 0.15
-    y_margin = (y_max - y_min) * 0.15
-    
-    ax.set_xlim(x_min - x_margin, x_max + x_margin)
-    ax.set_ylim(y_min - y_margin, y_max + y_margin)
+    ax.set_xlim(-0.05, 2.05)
+    ax.set_ylim(-0.05, 2.05)
     
     plt.title(f"RESULTADO FINAL - Match: {match_percent_final:.1f}%", fontsize=16, fontweight='bold', color='white')
     plt.xlabel("Frequencia de Uso (Normalizada)", fontsize=12, color='white')
@@ -478,15 +461,6 @@ df_resultado['Encontros_Complexos'] = X[:, 3].astype(int)
 df_resultado['Nivel_Calculado'] = X[:, 4]
 
 df_resultado['Classificacao_KMeans'] = df_resultado['Cluster'].map(mapeamento_final)
-
-def classificar_nivel(nivel):
-    if nivel <= 0.3:
-        return "facil"
-    elif nivel <= 0.6:
-        return "medio"
-    else:
-        return "dificil"
-
 df_resultado['Classificacao_Calculada'] = df_resultado['Nivel_Calculado'].apply(classificar_nivel)
 
 print("\nTABELA DE RESULTADOS:")
