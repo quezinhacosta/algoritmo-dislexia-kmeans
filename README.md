@@ -22,5 +22,7 @@ Em vez de utilizar limites de corte manuais e estáticos, o algoritmo analisa m�
 Certifique-se de ter o Python e as bibliotecas necessárias instaladas no seu ambiente:
 
 ```bash
-pip install numpy pandas matplotlib scikit-learn spacy
-python -m spacy download pt_core_news_sm
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python algoritmo-dislexia-kmeans/dislex_kmeans.py
